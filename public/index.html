@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #f4f4f9;
+        }
+
+        button {
+            width: 80%;
+            padding: 20px;
+            margin: 10px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            border: none;
+            color: white;
+            transition: 0.3s;
+        }
+
+        #start {
+            background: #28a745;
+        }
+
+        #stop {
+            background: #dc3545;
+            display: none;
+        }
+
+        #status {
+            font-weight: bold;
+            color: #333;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>4G/5G Voice Uplink</h2>
+    <button id="start">🔴 Start Recording</button>
+    <button id="stop">⏹ Stop & Send</button>
+    <p id="status">Status: Ready</p>
+
+    <script>
+        let recorder, chunks = [];
+        const startBtn = document.getElementById('start');
+        const stopBtn = document.getElementById('stop');
+        const status = document.getElementById('status');
+
+        startBtn.onclick = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = uploadAudio;
+            recorder.start();
+
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            status.innerText = "Status: Recording...";
+        };
+
+        stopBtn.onclick = () => {
+            recorder.stop();
+            startBtn.style.display = 'block';
+            stopBtn.style.display = 'none';
+        };
+
+        async function uploadAudio() {
+            status.innerText = "Status: Uploading via 4G/5G...";
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('voiceNote', blob);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                status.innerText = "Status: " + data.message;
+            } catch (err) {
+                status.innerText = "Status: Upload Failed!";
+            }
+            chunks = [];
+        }
+    </script>
+</body>
+
+</html>
