@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Studio - AI 在地導遊</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container" style="max-width: 800px;">
+        <div id="view-guide" class="view active" style="width:100%;">
+            
+            <p id="guide-greeting" style="color:var(--primary); font-weight:bold; margin-bottom: 2rem; font-size:1.2rem; text-align:center;"></p>
+
+            <!-- UI 1: Voice AI Studio -->
+            <div class="recorder-container">
+                <div class="header">
+                    <h1>Voice AI Studio</h1>
+                    <p>Record your voice, clone it, and make it say anything!</p>
+                </div>
+
+                <textarea id="sentenceInput" class="text-input" placeholder="Type a sentence here... Then record a 10s voice sample, and we will clone your voice to say this sentence! (Leave blank to just upload to cloud)"></textarea>
+
+                <div class="record-button-wrapper">
+                    <button class="record-btn" id="studioRecordBtn" title="Start Recording">
+                        <svg width="24" height="32" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg" id="micIcon">
+                            <path d="M12 21C14.7614 21 17 18.7614 17 16V6C17 3.23858 14.7614 1 12 1C9.23858 1 7 3.23858 7 6V16C7 18.7614 9.23858 21 12 21Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            <path d="M4 14V16C4 20.4183 7.58172 24 12 24M20 14V16C20 20.4183 16.4183 24 12 24M12 24V31M8 31H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" id="stopIcon" style="display: none;">
+                            <rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" />
+                        </svg>
+                    </button>
+                    <div class="ripple"></div>
+                </div>
+
+                <div class="timer" id="timerDisplay">00:00</div>
+                <div class="status-display" id="studioStatusText">Ready to record</div>
+
+                <div class="audio-player-container" id="playerContainer">
+                    <audio id="audioPlayback" controls></audio>
+                </div>
+
+                <div class="result-container" id="resultBox">
+                    <p style="color: #4ade80; margin-bottom: 8px;" id="studioSuccessText">Upload Success!</p>
+                    <a href="#" id="resultLink" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 0.9rem;">View Uploaded File</a>
+                </div>
+            </div>
+
+            <!-- UI 2: Original Guide Translation -->
+            <div class="glass-panel" style="margin-top: 2rem;">
+                <h2>熱情解說翻譯模式</h2>
+                <p>說出你想跟外國人介紹的故事，將自動翻譯成道地英文語音！</p>
+                <button class="btn primary" id="guide-start" style="padding: 1.5rem; font-size:1.1rem; border-radius: 50px;">🎙️ 開始錄音 (翻譯模式)</button>
+                <button class="btn danger pulse" id="guide-stop" style="padding: 1.5rem; font-size:1.1rem; border-radius: 50px; display:none;">⏹ 停止並翻譯</button>
+                
+                <div id="guide-status" class="status-badge" style="margin-top: 1.5rem;">狀態：等待解說</div>
+                
+                <div id="translation-result" style="display: none; background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 12px; font-size: 0.95rem; width: 100%; line-height: 1.5; margin-top: 1rem; color: #FFF; text-align: left; border-left: 4px solid var(--primary);">
+                    <strong style="color: #00d2ff;">您的原文：</strong><br>
+                    <span id="trans-zh"></span><br><br>
+                    <strong style="color: #ff9900;">AI 道地英文：</strong><br>
+                    <span id="trans-en"></span>
+                </div>
+            </div>
+            
+            <a class="logout-link" href="#" id="logout-btn" style="margin-top:2rem;">登出目前帳號</a>
+        </div>
+    </div>
+    <script>
+        const currentUser = localStorage.getItem('currentUser');
+        const currentUserName = localStorage.getItem('currentUserName');
+        if(!currentUser) window.location.href = '/';
+        
+        document.getElementById('guide-greeting').innerText = `導遊 ${currentUserName}，上工囉！`;
+        document.getElementById('logout-btn').onclick = () => { localStorage.clear(); window.location.href = '/'; };
+        
+        const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '';
+
+        // ==========================================
+        // 1. Voice AI Studio Logic
+        // ==========================================
+        let studioRecorder = null;
+        let studioChunks = [];
+        let isRecording = false;
+        let timerInterval = null;
+        let seconds = 0;
+
+        const studioRecordBtn = document.getElementById('studioRecordBtn');
+        const micIcon = document.getElementById('micIcon');
+        const stopIcon = document.getElementById('stopIcon');
+        const studioStatusText = document.getElementById('studioStatusText');
+        const resultBox = document.getElementById('resultBox');
+        const resultLink = document.getElementById('resultLink');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const playerContainer = document.getElementById('playerContainer');
+        const audioPlayback = document.getElementById('audioPlayback');
+        const studioSuccessText = document.getElementById('studioSuccessText');
+
+        function updateTimer() {
+            seconds++;
+            const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+            const secs = String(seconds % 60).padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        studioRecordBtn.onclick = async () => {
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    studioRecorder = new MediaRecorder(stream);
+                    studioRecorder.ondataavailable = e => { if (e.data.size > 0) studioChunks.push(e.data); };
+                    studioRecorder.onstop = processStudioAudio;
+                    studioRecorder.start(10);
+
+                    isRecording = true;
+                    studioRecordBtn.classList.add('recording');
+                    micIcon.style.display = 'none';
+                    stopIcon.style.display = 'block';
+                    studioStatusText.textContent = "Recording...";
+
+                    resultBox.classList.remove('show');
+                    playerContainer.classList.remove('show');
+                    seconds = 0;
+                    timerDisplay.textContent = "00:00";
+                    timerDisplay.classList.add('active');
+                    timerInterval = setInterval(updateTimer, 1000);
+                } catch (err) {
+                    studioStatusText.textContent = "Error: Please allow microphone access.";
+                    studioStatusText.style.color = "#ef4444";
+                }
+            } else {
+                if (studioRecorder && studioRecorder.state !== 'inactive') {
+                    studioRecorder.stop();
+                    studioRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                clearInterval(timerInterval);
+                timerDisplay.classList.remove('active');
+                isRecording = false;
+                studioRecordBtn.classList.remove('recording');
+                micIcon.style.display = 'block';
+                stopIcon.style.display = 'none';
+                studioStatusText.textContent = "Processing...";
+            }
+        };
+
+        async function processStudioAudio() {
+            const sentence = document.getElementById('sentenceInput').value.trim();
+            const blob = new Blob(studioChunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('file', blob, 'recording.webm');
+            formData.append('userId', currentUser);
+
+            try {
+                if (sentence) {
+                    studioStatusText.textContent = "Cloning your voice & synthesizing text...";
+                    formData.append('text', sentence);
+                    const res = await fetch(`${API_BASE}/api/clone`, { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error("Clone failed");
+
+                    const cloneBlob = await res.blob();
+                    const cloneUrl = URL.createObjectURL(cloneBlob);
+                    studioStatusText.textContent = "Voice Cloning Complete! Listen below:";
+                    studioStatusText.style.color = "#4ade80";
+
+                    audioPlayback.src = cloneUrl;
+                    playerContainer.classList.add('show');
+                    audioPlayback.play();
+
+                    resultLink.href = cloneUrl;
+                    resultLink.download = "ai_cloned_voice.mp3";
+                    resultLink.textContent = "Download Synthesized Audio";
+                    studioSuccessText.textContent = "Clone Success!";
+                    resultBox.classList.add('show');
+                } else {
+                    studioStatusText.textContent = "Uploading to Cloudinary...";
+                    const audioUrl = URL.createObjectURL(blob);
+                    audioPlayback.src = audioUrl;
+                    playerContainer.classList.add('show');
+
+                    const uploadForm = new FormData();
+                    uploadForm.append('voiceNote', blob); 
+                    uploadForm.append('userId', currentUser);
+                    const res = await fetch('/api/upload', { method: 'POST', body: uploadForm });
+                    if (!res.ok) throw new Error("Upload failed");
+
+                    const data = await res.json();
+                    studioStatusText.textContent = "Upload Complete!";
+                    studioStatusText.style.color = "#4ade80";
+
+                    resultLink.href = data.url;
+                    resultLink.removeAttribute("download");
+                    resultLink.textContent = "View Uploaded File";
+                    studioSuccessText.textContent = "Saved to Cloudinary!";
+                    resultBox.classList.add('show');
+                }
+            } catch (err) {
+                console.error(err);
+                studioStatusText.textContent = "Process Failed! Check server.";
+                studioStatusText.style.color = "#ef4444";
+            }
+            studioChunks = [];
+        }
+
+        // ==========================================
+        // 2. Original Voice Translation Logic
+        // ==========================================
+        let recorder = null;
+        let chunks = [];
+        
+        document.getElementById('guide-start').onclick = async () => {
+            chunks = [];
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = uploadAudio;
+            recorder.start();
+            
+            document.getElementById('guide-start').style.display = 'none';
+            document.getElementById('guide-stop').style.display = 'flex';
+            document.getElementById('guide-status').innerText = "狀態：🎙️正在聽您解說...";
+            document.getElementById('translation-result').style.display = 'none';
+        };
+        
+        document.getElementById('guide-stop').onclick = () => {
+            if(recorder && recorder.state === 'recording') {
+                recorder.stop();
+                document.getElementById('guide-stop').style.display = 'none';
+                document.getElementById('guide-status').innerText = "狀態：⏳ 音檔上傳中...";
+            }
+        };
+
+        async function uploadAudio() {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('userId', currentUser);
+            formData.append('voiceNote', blob);
+            
+            const statusEl = document.getElementById('guide-status');
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if(res.ok) {
+                    statusEl.innerText = "🚀 語音上傳成功，正在進行語音轉文字 (STT)...";
+                    
+                    const sttReq = await fetch(`${API_BASE}/api/stt`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ audio_path: data.url })
+                    });
+                    const sttData = await sttReq.json();
+                    
+                    if(sttData.status === 'success') {
+                        statusEl.innerText = "🤖 辨識成功！正在進行導遊情境翻譯潤飾...";
+                        document.getElementById('translation-result').style.display = 'block';
+                        document.getElementById('trans-zh').innerText = sttData.text;
+                        document.getElementById('trans-en').innerText = "...等待 AI 翻譯中...";
+                        
+                        const transReq = await fetch(`${API_BASE}/api/translate`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ride_id: currentUser, text: sttData.text })
+                        });
+                        const transData = await transReq.json();
+                        
+                        if(transData.final_english && !transData.final_english.includes("Failed")) {
+                            statusEl.innerText = "✨ 翻譯完成！請看畫面結果。";
+                            document.getElementById('trans-en').innerText = transData.final_english;
+                        } else {
+                            statusEl.innerText = "❌ 翻譯失敗";
+                            document.getElementById('trans-en').innerText = "(伺服器錯誤)";
+                        }
+                    } else {
+                        statusEl.innerText = "❌ 語音辨識失敗：" + (sttData.error || '不明錯誤');
+                    }
+                } else {
+                    statusEl.innerText = "❌ 上傳雲端失敗！";
+                }
+            } catch (err) {
+                statusEl.innerText = "❌ API 連線錯誤 (請確認 python server 有啟動)";
+            }
+            document.getElementById('guide-start').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>

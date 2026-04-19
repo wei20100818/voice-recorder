@@ -1,5 +1,6 @@
 node_modules/
 uploads/
+<<<<<<< Updated upstream
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -216,3 +217,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+=======
+.vercel
+>>>>>>> Stashed changes

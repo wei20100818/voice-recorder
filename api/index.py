@@ -5,6 +5,7 @@ import asyncio
 import logging
 from pathlib import Path
 import google.generativeai as genai
+from typing import Dict, List, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,6 +14,7 @@ import subprocess
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import requests
+import traceback
 import io
 import speech_recognition as sr
 
@@ -89,6 +91,8 @@ if api_keys_env:
 else:
     translator_model = None
 
+from fastapi.middleware.cors import CORSMiddleware
+
 # ==========================================
 # FastAPI App
 # ==========================================
@@ -98,13 +102,21 @@ app = FastAPI(
     title="Taxi Integrated API (STT & Translation)"
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- Memory and Cache for Translation ---
-memory_db = {}
-client_activity = {}
+memory_db: Dict[str, List[Dict[str, Any]]] = {}
+client_activity: Dict[str, float] = {}
 MEMORY_TTL_SECONDS = 3600 
 
 MAX_CACHE_SIZE = 2000
-translation_cache = {} 
+translation_cache: Dict[str, Dict[str, Any]] = {} 
 
 class TranslationRequest(BaseModel):
     ride_id: str
@@ -139,7 +151,7 @@ def cache_add(text: str, raw: str, final: str):
     if len(translation_cache) >= MAX_CACHE_SIZE:
         sorted_items = sorted(translation_cache.items(), key=lambda item: item[1]["hits"], reverse=True)
         half_size = MAX_CACHE_SIZE // 2
-        keys_to_delete = [item[0] for item in sorted_items[half_size:]]
+        keys_to_delete = [sorted_items[i][0] for i in range(half_size, len(sorted_items))]
         for k in keys_to_delete:
             del translation_cache[k]
         logger.info(f"🧹 [Cache Cleanup] Cleared {len(keys_to_delete)} low-frequency cache items.")
@@ -211,8 +223,8 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
         final_english = translation_cache[new_text]["final"]
         logger.info(f"⚡ [Cache Hit] Hits: {translation_cache[new_text]['hits']} for text: {new_text}")
     else:
-        raw_english = "(Translation Failed)"
-        final_english = "(Polishing Failed)"
+        raw_english: str = "(Translation Failed)"
+        final_english: str = "(Polishing Failed)"
         
         try:
             prompt = f"[Vocabulary Hints]:\n{DICT_CONTEXT}\n\n[Target Text]:\n{new_text}"
@@ -236,8 +248,8 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
                 final_english = "(Parsing error from AI response)"
 
         except asyncio.TimeoutError:
-             logger.error(f"❌ [Error] AI request timed out")
-             final_english = "(Service timeout)"
+            logger.error(f"❌ [Error] AI request timed out")
+            final_english = "(Service timeout)"
         except Exception as e:
             logger.error(f"❌ [Error in Translation] {repr(e)}")
             final_english = f"(Service error: {repr(e)})"
@@ -255,7 +267,7 @@ async def translate_text(request: TranslationRequest, background_tasks: Backgrou
         "original_zh": new_text,
         "raw_translation": raw_english,
         "final_english": final_english,
-        "process_time": round(time.time() - start_time, 2)
+        "process_time": round(float(time.time() - start_time), 2)
     }
 
 @app.post("/api/end_ride")
@@ -293,7 +305,7 @@ async def clone_voice(text: str = Form(...), file: UploadFile = File(...)):
         url = "https://api.elevenlabs.io/v1/voices/add"
         
         # Ensures no hidden non-ASCII characters
-        clean_api_key = ELEVENLABS_API_KEY.encode('ascii', 'ignore').decode('ascii').strip()
+        clean_api_key = ELEVENLABS_API_KEY.encode('ascii', 'ignore').decode('ascii').strip() if ELEVENLABS_API_KEY else ""
         headers = {
             "xi-api-key": clean_api_key
         }

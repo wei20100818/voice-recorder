@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>建立聲紋 - AI 在地導遊</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div id="view-enroll" class="view active glass-panel">
+            <h1>註冊您的聲紋模型</h1>
+            <p id="enroll-greeting" style="color:var(--primary); font-weight:bold;"></p>
+            <p>這是您首次登入。請朗讀以下文案以建立專屬聲紋。</p>
+            <div class="script-box">
+                大家好，歡迎來到台灣！身為你們的專屬在地導遊，我非常期待能帶大家體驗這裡最真實的日常生活。<br><br>
+                首先，讓我們放鬆心情，隨意走走。你知道嗎？這裡最迷人的不僅是優美的風景，更是那股濃厚的人情味。<br><br>
+                哇！你看那邊的夜市，現在人潮已經開始慢慢變多了！那裡有我從小吃到大的獨家美食。像是那個外酥內軟的炸臭豆腐，加上酸酸甜甜的台式泡菜，絕對會讓你一口接一個，停不下來！很多人一開始可能會有點害怕這個味道，但是相信我，試過一次你就會徹底愛上它。<br><br>
+                除了美食，等一下我們還會去參觀一座有兩百多年歷史的老廟。待會如果你抬頭看，可以發現屋簷上的精美木雕，全都是當年老師傅純手工、一刀一刀刻出來的，是不是非常了不起？<br><br>
+                總而言之，各位完全不用擔心語言不通的問題，只要跟著我，我們今天一定會玩得非常開心。大家都準備好出發了嗎？我們走吧！
+            </div>
+            <button id="enroll-start" class="btn primary">🔴 開始錄音 (約 1 分鐘)</button>
+            <button id="enroll-stop" class="btn danger">⏹ 結束並上傳聲紋</button>
+            <div id="enroll-status" class="status-badge">狀態：準備建立聲紋</div>
+            <a class="logout-link" href="#" id="logout-btn">登出目前帳號</a>
+        </div>
+    </div>
+    <script>
+        const currentUser = localStorage.getItem('currentUser');
+        const currentUserName = localStorage.getItem('currentUserName');
+        if(!currentUser) window.location.href = '/';
+        
+        document.getElementById('enroll-greeting').innerText = `你好，${currentUserName}！`;
+        document.getElementById('logout-btn').onclick = () => { localStorage.clear(); window.location.href = '/'; };
+        
+        let recorder = null;
+        let chunks = [];
+        
+        document.getElementById('enroll-start').onclick = async () => {
+            chunks = [];
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = uploadAudio;
+            recorder.start();
+            
+            document.getElementById('enroll-start').style.display = 'none';
+            document.getElementById('enroll-stop').style.display = 'flex';
+            document.getElementById('enroll-status').innerText = "狀態：🎙️正在錄製語音...";
+        };
+        
+        document.getElementById('enroll-stop').onclick = () => {
+            if(recorder && recorder.state === 'recording') {
+                recorder.stop();
+                document.getElementById('enroll-stop').style.display = 'none';
+                document.getElementById('enroll-status').innerText = "狀態：⏳ 準備上傳雲端...";
+            }
+        };
+
+        async function uploadAudio() {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('userId', currentUser);
+            formData.append('voiceNote', blob);
+            
+            document.getElementById('enroll-status').innerText = "狀態：⏳ 正在把檔案放上雲端...";
+            try {
+                const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                if(res.ok) {
+                    document.getElementById('enroll-status').innerText = "✅ 聲紋提取成功！已完成專屬模型建立。";
+                    localStorage.setItem(`voice_enrolled_${currentUser}`, 'true');
+                    setTimeout(() => window.location.href = `/user/${currentUser}/record`, 2000);
+                } else {
+                    document.getElementById('enroll-status').innerText = "❌ 上傳失敗！";
+                    document.getElementById('enroll-start').style.display = 'flex';
+                }
+            } catch (err) {
+                document.getElementById('enroll-status').innerText = "❌ 連線錯誤";
+                document.getElementById('enroll-start').style.display = 'flex';
+            }
+        }
+    </script>
+</body>
+</html>

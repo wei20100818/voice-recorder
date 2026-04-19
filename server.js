@@ -18,7 +18,11 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: {
-        folder: 'voice-notes',
+        folder: (req, file) => {
+            // userId will be sent from frontend in the FormData (must be appended before file)
+            const userId = req.body.userId || 'anonymous';
+            return `voice-notes/${userId}`;
+        },
         resource_type: 'video',
     },
 });
@@ -26,19 +30,21 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage: storage });
 
 // VERCEL FIX: Manually serve the index.html for the home route
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.use(express.static('public', { index: false })); // Exclude automatic index serving so we can manually handle routes
 
-// Also keep this to serve CSS/JS if you add any later
-app.use(express.static(path.join(__dirname, 'public')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
+app.get('/user/:id/record', (req, res) => res.sendFile(path.join(__dirname, 'public', 'record.html')));
 
-app.post('/upload', upload.single('voiceNote'), (req, res) => {
+app.post('/api/upload', upload.single('voiceNote'), (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
     }
+    const userId = req.body.userId || 'anonymous';
     res.status(200).json({
         message: "Sent to Cloud!",
+        userId: userId,
+        folder: `voice-notes/${userId}`,
         url: req.file.path
     });
 });
@@ -46,6 +52,13 @@ app.post('/upload', upload.single('voiceNote'), (req, res) => {
 // For Vercel, we don't strictly need app.listen, but it doesn't hurt.
 // The export is what matters most.
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Export the app for Vercel
+module.exports = app;
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT} (Multi-Page Router enabled)`);
+    });
+}
 
 module.exports = app;

@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Integrated Voice App</title>
+    <title>AI 在地導遊 - 登入</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
             --primary-color: #6366f1;
@@ -38,8 +41,8 @@
             gap: 40px;
         }
 
-        /* --- Voice AI Studio Styles --- */
-        .recorder-container {
+        /* --- Shared Glass Panel Styles --- */
+        .glass-panel, .recorder-container {
             background: var(--glass-bg);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -53,11 +56,24 @@
             transition: all 0.3s ease;
         }
 
-        .recorder-container:hover {
+        .glass-panel:hover, .recorder-container:hover {
             border-color: rgba(255, 255, 255, 0.2);
             transform: translateY(-5px);
         }
 
+        .glass-panel h1 {
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .glass-panel p {
+            font-family: 'Noto Sans TC', sans-serif;
+            color: var(--text-muted);
+        }
+
+        /* --- Voice AI Studio Styles --- */
         .header h1 {
             font-size: 2rem;
             font-weight: 800;
@@ -269,10 +285,16 @@
         }
     </style>
 </head>
-
 <body>
 
-    <!-- UI 1: Voice AI Studio -->
+    <div class="container" style="width: 100%; max-width: 480px;">
+        <div id="view-login" class="view active glass-panel">
+            <h1>AI 在地導遊</h1>
+            <p>請使用您的 Google 帳號登入系統</p>
+            <div id="google_btn_container" style="display: flex; justify-content: center; margin-top: 15px;"></div>
+        </div>
+    </div>
+
     <div class="recorder-container">
         <div class="header">
             <h1>Voice AI Studio</h1>
@@ -313,7 +335,6 @@
         </div>
     </div>
 
-    <!-- UI 2: Voice Recorder (Original) -->
     <div class="simple-card">
         <h2>4G/5G Voice Uplink</h2>
         <button class="simple-btn" id="startBtn">🔴 Start Recording</button>
@@ -323,7 +344,47 @@
 
     <script>
         // ==========================================
-        // 1. Voice AI Studio Logic
+        // Feature 2: Google Login Logic
+        // ==========================================
+        window.onload = function () {
+            let clientId = "970732083734-28k4jtivkvrdcuf314sp3d1c3ltfn9oj.apps.googleusercontent.com"; // Localhost
+            if (window.location.hostname.includes('vercel.app')) {
+                clientId = "970732083734-j5s5c6dnakt75ds6bhsu0lqr0b41lcbg.apps.googleusercontent.com"; // Vercel
+            }
+
+            google.accounts.id.initialize({
+                client_id: clientId,
+                callback: handleGoogleLogin,
+                auto_prompt: false
+            });
+            google.accounts.id.renderButton(
+                document.getElementById("google_btn_container"),
+                { theme: "outline", size: "large", type: "standard", shape: "rectangular", text: "signin_with", logo_alignment: "center" }
+            );
+        };
+
+        function decodeJwtResponse(token) {
+            let base64Url = token.split('.')[1];
+            let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            return JSON.parse(decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
+        }
+
+        function handleGoogleLogin(response) {
+            const payload = decodeJwtResponse(response.credential);
+            const googleId = payload.sub;
+            localStorage.setItem('currentUser', googleId);
+            localStorage.setItem('currentUserName', payload.name);
+            
+            const hasEnrolled = localStorage.getItem(`voice_enrolled_${googleId}`);
+            if (!hasEnrolled) {
+                window.location.href = '/register';
+            } else {
+                window.location.href = `/user/${googleId}/record`;
+            }
+        }
+
+        // ==========================================
+        // Feature 1: Voice AI Studio Logic
         // ==========================================
         let studioRecorder = null;
         let studioChunks = [];
@@ -453,7 +514,7 @@
         }
 
         // ==========================================
-        // 2. Original Voice Recorder Logic
+        // Feature 1: Original Voice Recorder Logic
         // ==========================================
         let simpleRecorder, simpleChunks = [];
         const startBtn = document.getElementById('startBtn');
@@ -501,5 +562,5 @@
         }
     </script>
 </body>
-
+</html>
 </html>

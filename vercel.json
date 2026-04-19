@@ -1,5 +1,6 @@
 {
     "version": 2,
+    "cleanUrls": true,
     "rewrites": [
         {
             "source": "/upload",
@@ -16,6 +17,8 @@
         {
             "source": "/(.*)",
             "destination": "/public/$1"
-        }
+        },
+        { "source": "/register", "destination": "/public/register.html" },
+        { "source": "/user/:id/record", "destination": "/public/record.html" }
     ]
 }
