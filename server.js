@@ -36,7 +36,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 app.get('/register', (req, res) => res.sendFile(path.join(__dirname, 'public', 'register.html')));
 app.get('/user/:id/record', (req, res) => res.sendFile(path.join(__dirname, 'public', 'record.html')));
 
-app.post('/upload', upload.single('voiceNote'), (req, res) => {
+app.post('/api/upload', upload.single('voiceNote'), (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
     }
