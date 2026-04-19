@@ -8,6 +8,9 @@ import google.generativeai as genai
 from typing import Dict, List, Any
 from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+import traceback
+import subprocess
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import requests
@@ -298,12 +301,21 @@ async def clone_voice(text: str = Form(...), file: UploadFile = File(...)):
         with open(filepath, "wb") as f:
             f.write(await file.read())
 
+        # Step 1: Upload and clone voice
         url = "https://api.elevenlabs.io/v1/voices/add"
-        clean_api_key = ELEVENLABS_API_KEY.encode('ascii', 'ignore').decode('ascii').strip() if ELEVENLABS_API_KEY else ""
-        headers = {"xi-api-key": clean_api_key}
         
-        files_upload = {"files": ("audio.webm", open(filepath, "rb"), "audio/webm")}
-        data = {"name": "my_voice_clone"}
+        # Ensures no hidden non-ASCII characters
+        clean_api_key = ELEVENLABS_API_KEY.encode('ascii', 'ignore').decode('ascii').strip() if ELEVENLABS_API_KEY else ""
+        headers = {
+            "xi-api-key": clean_api_key
+        }
+        
+        files_upload = {
+            "files": ("audio.webm", open(filepath, "rb"), "audio/webm")
+        }
+        data = {
+            "name": "my_voice_clone"
+        }
         
         response1 = requests.post(url, headers=headers, files=files_upload, data=data)
         if response1.status_code != 200:
@@ -311,8 +323,12 @@ async def clone_voice(text: str = Form(...), file: UploadFile = File(...)):
         
         voice_id = response1.json()["voice_id"]
 
+        # Step 2: Text to Speech
         tts_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-        tts_data = {"text": text, "model_id": "eleven_monolingual_v1"}
+        tts_data = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1"
+        }
         
         response2 = requests.post(tts_url, json=tts_data, headers=headers)
         if response2.status_code != 200:
@@ -335,4 +351,8 @@ async def hello_world():
         "status": "success",
         "timestamp": "2026-04-11"
     }
+
+import os
+if os.path.exists("public"):
+    app.mount("/", StaticFiles(directory="public", html=True), name="public")
 

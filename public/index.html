@@ -4,20 +4,348 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI 在地導遊 - 登入</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #4f46e5;
+            --danger-color: #ef4444;
+            --danger-hover: #dc2626;
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            gap: 40px;
+        }
+
+        /* --- Shared Glass Panel Styles --- */
+        .glass-panel, .recorder-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .glass-panel:hover, .recorder-container:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-5px);
+        }
+
+        .glass-panel h1 {
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--text-main);
+        }
+
+        .glass-panel p {
+            font-family: 'Noto Sans TC', sans-serif;
+            color: var(--text-muted);
+        }
+
+        /* --- Voice AI Studio Styles --- */
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 40px;
+        }
+
+        .record-button-wrapper {
+            position: relative;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .record-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary-color);
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .record-btn:hover {
+            transform: scale(1.05);
+            background: var(--primary-hover);
+        }
+
+        .record-btn.recording {
+            background: var(--danger-color);
+            animation: pulse-danger 1.5s infinite;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+        }
+
+        .record-btn.recording:hover {
+            background: var(--danger-hover);
+        }
+
+        .ripple {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--danger-color);
+            opacity: 0;
+            z-index: 1;
+        }
+
+        .record-btn.recording~.ripple {
+            animation: ripple-effect 1.5s infinite;
+        }
+
+        @keyframes pulse-danger {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes ripple-effect {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+
+        .status-display {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            min-height: 24px;
+            color: #e2e8f0;
+        }
+
+        .timer {
+            font-family: monospace;
+            font-size: 1.25rem;
+            color: #cbd5e1;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .timer.active {
+            display: block;
+        }
+
+        .result-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            display: none;
+            word-break: break-all;
+        }
+
+        .result-container.show {
+            display: block;
+            animation: slide-up 0.4s ease forwards;
+        }
+
+        @keyframes slide-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .audio-player-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .audio-player-container.show {
+            display: block;
+        }
+
+        audio {
+            width: 100%;
+            height: 40px;
+            border-radius: 20px;
+        }
+
+        audio::-webkit-media-controls-panel {
+            background-color: var(--glass-bg);
+            color: white;
+        }
+        
+        .text-input {
+            width: 100%;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--glass-border);
+            color: var(--text-main);
+            font-size: 1rem;
+            margin-bottom: 25px;
+            resize: vertical;
+            min-height: 80px;
+            transition: all 0.3s ease;
+        }
+        .text-input::placeholder {
+            color: var(--text-muted);
+        }
+        .text-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.3);
+        }
+
+        /* --- Legacy Simple Voice Recorder Styles --- */
+        .simple-card {
+            background: #f4f4f9;
+            color: #333;
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .simple-card h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
+        .simple-btn {
+            width: 80%;
+            padding: 20px;
+            margin: 10px auto;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            border: none;
+            color: white;
+            transition: 0.3s;
+            cursor: pointer;
+            display: block;
+        }
+
+        #startBtn {
+            background: #28a745;
+        }
+
+        #stopBtn {
+            background: #dc3545;
+            display: none;
+        }
+
+        #simpleStatusText {
+            font-weight: bold;
+            color: #333;
+            margin-top: 20px;
+            font-size: 1rem;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
+
+    <div class="container" style="width: 100%; max-width: 480px;">
         <div id="view-login" class="view active glass-panel">
             <h1>AI 在地導遊</h1>
             <p>請使用您的 Google 帳號登入系統</p>
             <div id="google_btn_container" style="display: flex; justify-content: center; margin-top: 15px;"></div>
         </div>
     </div>
+
+    <div class="recorder-container">
+        <div class="header">
+            <h1>Voice AI Studio</h1>
+            <p>Record your voice, clone it, and make it say anything!</p>
+        </div>
+
+        <textarea id="sentenceInput" class="text-input" placeholder="Type a sentence here... Then record a 10s voice sample, and we will clone your voice to say this sentence! (Leave blank to just upload to cloud)"></textarea>
+
+        <div class="record-button-wrapper">
+            <button class="record-btn" id="studioRecordBtn" title="Start Recording">
+                <svg width="24" height="32" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    id="micIcon">
+                    <path
+                        d="M12 21C14.7614 21 17 18.7614 17 16V6C17 3.23858 14.7614 1 12 1C9.23858 1 7 3.23858 7 6V16C7 18.7614 9.23858 21 12 21Z"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M4 14V16C4 20.4183 7.58172 24 12 24M20 14V16C20 20.4183 16.4183 24 12 24M12 24V31M8 31H16"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                    id="stopIcon" style="display: none;">
+                    <rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor" />
+                </svg>
+            </button>
+            <div class="ripple"></div>
+        </div>
+
+        <div class="timer" id="timerDisplay">00:00</div>
+        <div class="status-display" id="studioStatusText">Ready to record</div>
+
+        <div class="audio-player-container" id="playerContainer">
+            <audio id="audioPlayback" controls></audio>
+        </div>
+
+        <div class="result-container" id="resultBox">
+            <p style="color: #4ade80; margin-bottom: 8px;">Upload Success!</p>
+            <a href="#" id="resultLink" target="_blank"
+                style="color: #60a5fa; text-decoration: none; font-size: 0.9rem;">View Uploaded File</a>
+        </div>
+    </div>
+
+    <div class="simple-card">
+        <h2>4G/5G Voice Uplink</h2>
+        <button class="simple-btn" id="startBtn">🔴 Start Recording</button>
+        <button class="simple-btn" id="stopBtn">⏹ Stop & Send</button>
+        <p id="simpleStatusText">Status: Ready</p>
+    </div>
+
     <script>
+        // ==========================================
+        // Feature 2: Google Login Logic
+        // ==========================================
         window.onload = function () {
             let clientId = "970732083734-28k4jtivkvrdcuf314sp3d1c3ltfn9oj.apps.googleusercontent.com"; // Localhost
             if (window.location.hostname.includes('vercel.app')) {
@@ -40,6 +368,7 @@
             let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             return JSON.parse(decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
         }
+
         function handleGoogleLogin(response) {
             const payload = decodeJwtResponse(response.credential);
             const googleId = payload.sub;
@@ -53,6 +382,185 @@
                 window.location.href = `/user/${googleId}/record`;
             }
         }
+
+        // ==========================================
+        // Feature 1: Voice AI Studio Logic
+        // ==========================================
+        let studioRecorder = null;
+        let studioChunks = [];
+        let isRecording = false;
+        let timerInterval = null;
+        let seconds = 0;
+
+        const studioRecordBtn = document.getElementById('studioRecordBtn');
+        const micIcon = document.getElementById('micIcon');
+        const stopIcon = document.getElementById('stopIcon');
+        const studioStatusText = document.getElementById('studioStatusText');
+        const resultBox = document.getElementById('resultBox');
+        const resultLink = document.getElementById('resultLink');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const playerContainer = document.getElementById('playerContainer');
+        const audioPlayback = document.getElementById('audioPlayback');
+
+        function updateTimer() {
+            seconds++;
+            const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+            const secs = String(seconds % 60).padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        studioRecordBtn.onclick = async () => {
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    studioRecorder = new MediaRecorder(stream);
+                    studioRecorder.ondataavailable = e => { if (e.data.size > 0) studioChunks.push(e.data); };
+                    studioRecorder.onstop = processStudioAudio;
+                    // start recording and capturing chunks every 10ms for stability
+                    studioRecorder.start(10);
+
+                    isRecording = true;
+                    studioRecordBtn.classList.add('recording');
+                    micIcon.style.display = 'none';
+                    stopIcon.style.display = 'block';
+                    studioStatusText.textContent = "Recording...";
+
+                    resultBox.classList.remove('show');
+                    playerContainer.classList.remove('show');
+                    seconds = 0;
+                    timerDisplay.textContent = "00:00";
+                    timerDisplay.classList.add('active');
+                    timerInterval = setInterval(updateTimer, 1000);
+                } catch (err) {
+                    console.error("Microphone error:", err);
+                    studioStatusText.textContent = "Error: Please allow microphone access.";
+                    studioStatusText.style.color = "var(--danger-color)";
+                }
+            } else {
+                if (studioRecorder && studioRecorder.state !== 'inactive') {
+                    studioRecorder.stop();
+                    studioRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                clearInterval(timerInterval);
+                timerDisplay.classList.remove('active');
+
+                isRecording = false;
+                studioRecordBtn.classList.remove('recording');
+                micIcon.style.display = 'block';
+                stopIcon.style.display = 'none';
+                studioStatusText.textContent = "Processing...";
+            }
+        };
+
+        async function processStudioAudio() {
+            const sentence = document.getElementById('sentenceInput').value.trim();
+            const blob = new Blob(studioChunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('file', blob, 'recording.webm');
+
+            try {
+                if (sentence) {
+                    studioStatusText.textContent = "Cloning your voice & synthesizing text...";
+                    formData.append('text', sentence);
+                    const res = await fetch('/api/clone', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error("Clone failed");
+
+                    const cloneBlob = await res.blob();
+                    const cloneUrl = URL.createObjectURL(cloneBlob);
+                    studioStatusText.textContent = "Voice Cloning Complete! Listen below:";
+                    studioStatusText.style.color = "#4ade80";
+
+                    audioPlayback.src = cloneUrl;
+                    playerContainer.classList.add('show');
+                    audioPlayback.play();
+
+                    resultLink.href = cloneUrl;
+                    resultLink.download = "ai_cloned_voice.mp3";
+                    resultLink.textContent = "Download Synthesized Audio";
+                    resultBox.classList.add('show');
+                } else {
+                    studioStatusText.textContent = "Uploading to Cloudinary...";
+                    const audioUrl = URL.createObjectURL(blob);
+                    audioPlayback.src = audioUrl;
+                    playerContainer.classList.add('show');
+
+                    // Note: upload expects voiceNote field directly from legacy system, fallback handles it here
+                    const uploadForm = new FormData();
+                    uploadForm.append('voiceNote', blob); 
+                    const res = await fetch('/upload', { method: 'POST', body: uploadForm });
+                    if (!res.ok) throw new Error("Upload failed");
+
+                    const data = await res.json();
+                    studioStatusText.textContent = "Upload Complete!";
+                    studioStatusText.style.color = "#4ade80";
+
+                    resultLink.href = data.url;
+                    resultLink.removeAttribute("download");
+                    resultLink.textContent = "View Uploaded File: " + data.url;
+                    resultBox.classList.add('show');
+                }
+            } catch (err) {
+                console.error("Action error:", err);
+                studioStatusText.textContent = "Process Failed! Please try again.";
+                studioStatusText.style.color = "var(--danger-color)";
+            }
+            studioChunks = [];
+            setTimeout(() => {
+                if (!isRecording) {
+                    studioStatusText.textContent = "Ready to record";
+                    studioStatusText.style.color = "var(--text-main)";
+                }
+            }, 8000);
+        }
+
+        // ==========================================
+        // Feature 1: Original Voice Recorder Logic
+        // ==========================================
+        let simpleRecorder, simpleChunks = [];
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const simpleStatusText = document.getElementById('simpleStatusText');
+
+        startBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                simpleRecorder = new MediaRecorder(stream);
+                simpleRecorder.ondataavailable = e => simpleChunks.push(e.data);
+                simpleRecorder.onstop = uploadSimpleAudio;
+                simpleRecorder.start();
+
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'block';
+                simpleStatusText.innerText = "Status: Recording...";
+            } catch (err) {
+                console.error("Mic access error:", err);
+                simpleStatusText.innerText = "Status: Mic Access Denied";
+            }
+        };
+
+        stopBtn.onclick = () => {
+            simpleRecorder.stop();
+            simpleRecorder.stream.getTracks().forEach(track => track.stop());
+            startBtn.style.display = 'block';
+            stopBtn.style.display = 'none';
+        };
+
+        async function uploadSimpleAudio() {
+            simpleStatusText.innerText = "Status: Uploading via 4G/5G...";
+            const blob = new Blob(simpleChunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('voiceNote', blob);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                simpleStatusText.innerText = "Status: " + data.message;
+            } catch (err) {
+                simpleStatusText.innerText = "Status: Upload Failed!";
+            }
+            simpleChunks = [];
+        }
     </script>
 </body>
+</html>
 </html>

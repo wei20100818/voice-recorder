@@ -1,10 +1,24 @@
 {
-  "cleanUrls": true,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" },
-    { "source": "/register", "destination": "/public/register.html" },
-    { "source": "/user/:id/record", "destination": "/public/record.html" },
-    { "source": "/", "destination": "/public/index.html" },
-    { "source": "/(.*)", "destination": "/public/$1" }
-  ]
+    "version": 2,
+    "cleanUrls": true,
+    "rewrites": [
+        {
+            "source": "/upload",
+            "destination": "server.js"
+        },
+        {
+            "source": "/",
+            "destination": "/public/index.html"
+        },
+        {
+            "source": "/api/(.*)",
+            "destination": "/api/index.py"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/public/$1"
+        },
+        { "source": "/register", "destination": "/public/register.html" },
+        { "source": "/user/:id/record", "destination": "/public/record.html" }
+    ]
 }
